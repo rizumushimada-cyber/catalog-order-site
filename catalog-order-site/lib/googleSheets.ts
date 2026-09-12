@@ -51,8 +51,11 @@ export function getSheetsClient(): sheets_v4.Sheets {
   if (cachedClient) return cachedClient;
 
   const email = getEnv('GOOGLE_SERVICE_ACCOUNT_EMAIL');
-  // Private keys in env vars typically have literal "\n" sequences; convert them back.
-  const privateKey = getEnv('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY').replace(/\\n/g, '\n');
+  // Base64版があればそちらを優先（コピペでの改行崩れを避けるため）
+  const base64Key = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_B64;
+  const privateKey = base64Key
+    ? Buffer.from(base64Key, 'base64').toString('utf-8')
+    : getEnv('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY').replace(/\\n/g, '\n');
 
   const auth = new google.auth.JWT({
     email,
