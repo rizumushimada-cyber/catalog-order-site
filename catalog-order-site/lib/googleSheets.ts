@@ -56,7 +56,9 @@ export function getSheetsClient(): sheets_v4.Sheets {
   const privateKey = base64Key
     ? Buffer.from(base64Key, 'base64').toString('utf-8')
     : getEnv('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY').replace(/\\n/g, '\n');
-
+  console.log('DEBUG email length:', email.length, JSON.stringify(email));
+  console.log('DEBUG key length:', privateKey.length, 'head:', JSON.stringify(privateKey.slice(0, 35)), 'tail:', JSON.stringify(privateKey.slice(-35)));
+  console.log('DEBUG key contains CRLF:', privateKey.includes('\r'));
   const auth = new google.auth.JWT({
     email,
     key: privateKey,
