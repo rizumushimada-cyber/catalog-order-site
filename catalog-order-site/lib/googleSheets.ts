@@ -50,7 +50,7 @@ function getEnv(name: string): string {
 export function getSheetsClient(): sheets_v4.Sheets {
   if (cachedClient) return cachedClient;
 
-  const email = getEnv('GOOGLE_SERVICE_ACCOUNT_EMAIL');
+ 
   // Base64版があればそちらを優先（コピペでの改行崩れを避けるため）
   const base64Key = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_B64;
   const privateKey = base64Key
