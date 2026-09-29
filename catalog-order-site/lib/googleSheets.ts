@@ -3,10 +3,13 @@ import { google, sheets_v4 } from 'googleapis';
 export const SHEET_CATALOG = 'catalog_master';
 export const SHEET_BRANCH = 'branch_master';
 export const SHEET_ORDER = 'order_history';
+export const SHEET_ARRIVALS = 'stock_arrivals';
 
 export const CATALOG_RANGE = `${SHEET_CATALOG}!A2:I`;
 export const BRANCH_RANGE = `${SHEET_BRANCH}!A2:A`;
 export const ORDER_APPEND_RANGE = `${SHEET_ORDER}!A:G`;
+// stock_arrivals columns: A arrival_date | B product_id | C quantity | D note | E processed
+export const ARRIVALS_RANGE = `${SHEET_ARRIVALS}!A2:E`;
 
 export type SalesStatus = 'on_sale' | 'out_of_stock';
 
@@ -62,7 +65,98 @@ function toNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+// ---------------------------------------------------------------------------
+// 入荷履歴 (stock_arrivals) の反映
+// ---------------------------------------------------------------------------
+// スタッフは stock_quantity を直接書き換えるのではなく、stock_arrivals シートに
+// 「いつ・どの商品が・何個入荷したか」を1行追加する。アプリはカタログ一覧を
+// 読み込むたびに、まだ反映されていない（E列 processed が空の）行を探し、
+// catalog_master の stock_quantity に加算したうえで、その行に処理日時を書き込む。
+
+type ArrivalRow = {
+  rowNumber: number;
+  arrivalDate: string;
+  productId: string;
+  quantity: number;
+  note: string;
+};
+
+async function getUnprocessedArrivals(): Promise<ArrivalRow[]> {
+  const sheets = getSheetsClient();
+  const spreadsheetId = getSheetId();
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: ARRIVALS_RANGE,
+  });
+
+  const rows = res.data.values ?? [];
+  const result: ArrivalRow[] = [];
+
+  rows.forEach((row, idx) => {
+    const [arrivalDate, productId, quantityRaw, note, processed] = row;
+    if (!productId) return;
+    if (processed) return; // すでに反映済み
+
+    result.push({
+      rowNumber: idx + 2,
+      arrivalDate: arrivalDate ?? '',
+      productId: String(productId),
+      quantity: toNumber(quantityRaw),
+      note: note ?? '',
+    });
+  });
+
+  return result;
+}
+
+/**
+ * 未反映の入荷行を catalog_master の在庫数に加算し、反映済みとして記録する。
+ * カタログ一覧の取得のたびに呼んでも安全。
+ */
+export async function applyPendingStockArrivals(): Promise<void> {
+  const arrivals = await getUnprocessedArrivals();
+  if (arrivals.length === 0) return;
+
+  const sheets = getSheetsClient();
+  const spreadsheetId = getSheetId();
+
+  // 同じ商品への複数行の入荷はまとめて加算する
+  const totalsByProduct = new Map<string, number>();
+  for (const a of arrivals) {
+    totalsByProduct.set(a.productId, (totalsByProduct.get(a.productId) ?? 0) + a.quantity);
+  }
+
+  const fresh = await getFreshStockQuantities(Array.from(totalsByProduct.keys()));
+
+  for (const [productId, addQty] of totalsByProduct) {
+    const current = fresh.get(productId);
+    if (!current) continue; // catalog_master に存在しない product_id は無視
+    await updateStockQuantity(current.rowNumber, current.stockQuantity + addQty);
+  }
+
+  const now = new Date().toISOString();
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      valueInputOption: 'RAW',
+      data: arrivals.map((a) => ({
+        range: `${SHEET_ARRIVALS}!E${a.rowNumber}`,
+        values: [[now]],
+      })),
+    },
+  });
+}
+
 export async function getCatalogItems(): Promise<CatalogItem[]> {
+  // 表示前に、未反映の入荷があれば在庫数に反映しておく
+  try {
+    await applyPendingStockArrivals();
+  } catch (err) {
+    // stock_arrivals シートが無い場合などは無視して通常表示を続ける
+    console.error('Failed to apply pending stock arrivals:', err);
+  }
+
   const sheets = getSheetsClient();
   const spreadsheetId = getSheetId();
 
