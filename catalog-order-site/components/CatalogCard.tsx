@@ -36,7 +36,7 @@ export default function CatalogCard({ item }: { item: CatalogViewModel }) {
             alt={item.catalogName}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover"
+            className="object-contain p-3"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-sm text-ink/40">
