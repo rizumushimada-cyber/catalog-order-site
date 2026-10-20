@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { appendOrderHistory, getFreshStockQuantities, updateStockQuantity } from '@/lib/googleSheets';
+import { getFreshStockQuantities, getSheetsClient, SHEET_ORDER, updateStockQuantity } from '@/lib/googleSheets';
 import { withProductLocks } from '@/lib/orderLock';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +12,7 @@ type OrderLineInput = {
 
 type OrderRequestBody = {
   branchName: string;
+  address?: string;
   staffName: string;
   note?: string;
   items: OrderLineInput[];
@@ -22,6 +23,7 @@ function isValidBody(body: any): body is OrderRequestBody {
     body &&
     typeof body.branchName === 'string' &&
     body.branchName.trim().length > 0 &&
+    (body.address === undefined || typeof body.address === 'string') &&
     typeof body.staffName === 'string' &&
     body.staffName.trim().length > 0 &&
     Array.isArray(body.items) &&
@@ -34,6 +36,22 @@ function isValidBody(body: any): body is OrderRequestBody {
         i.quantity > 0
     )
   );
+}
+
+// order_history の列: A 日時 | B 支店 | C 氏名 | D 商品ID | E カタログ名 | F 数量 | G 備考 | H 送付先住所
+async function appendOrderRows(rows: (string | number)[][]) {
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  if (!spreadsheetId) {
+    throw new Error('Missing required environment variable: GOOGLE_SHEET_ID');
+  }
+  const sheets = getSheetsClient();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range: `${SHEET_ORDER}!A:H`,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: rows },
+  });
 }
 
 export async function POST(request: Request) {
@@ -52,12 +70,12 @@ export async function POST(request: Request) {
   }
 
   const { branchName, staffName, note, items } = body;
+  const address = (body.address ?? '').trim();
   const productIds = items.map((i) => i.productId);
 
   try {
     const result = await withProductLocks(productIds, async () => {
-      // Re-read the latest stock straight from the sheet — never trust the
-      // value the client had when the page was loaded.
+      // 画面表示時点の在庫ではなく、スプレッドシートの最新在庫を必ず再取得して確認する
       const freshStock = await getFreshStockQuantities(productIds);
 
       const shortages: { catalogName: string; available: number }[] = [];
@@ -73,23 +91,23 @@ export async function POST(request: Request) {
         return { ok: false as const, shortages };
       }
 
-      // All items sufficient — commit: decrement stock, then append history.
       for (const item of items) {
         const fresh = freshStock.get(item.productId)!;
         await updateStockQuantity(fresh.rowNumber, fresh.stockQuantity - item.quantity);
       }
 
       const orderDatetime = new Date().toISOString();
-      await appendOrderHistory(
-        items.map((item) => ({
+      await appendOrderRows(
+        items.map((item) => [
           orderDatetime,
           branchName,
           staffName,
-          productId: item.productId,
-          catalogName: item.catalogName,
-          quantity: item.quantity,
-          note: note ?? '',
-        }))
+          item.productId,
+          item.catalogName,
+          item.quantity,
+          note ?? '',
+          address,
+        ])
       );
 
       return { ok: true as const };
