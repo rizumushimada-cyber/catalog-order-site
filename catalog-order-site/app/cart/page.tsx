@@ -6,29 +6,53 @@ import Image from 'next/image';
 import QuantitySelector from '@/components/QuantitySelector';
 import { useCart } from '@/context/CartContext';
 
+type Branch = {
+  name: string;
+  addresses: string[];
+};
+
 export default function CartPage() {
   const router = useRouter();
   const { items, updateQuantity, removeItem, clearCart } = useCart();
 
-  const [branches, setBranches] = useState<string[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [branchName, setBranchName] = useState('');
+  const [address, setAddress] = useState('');
   const [staffName, setStaffName] = useState('');
   const [note, setNote] = useState('');
 
-  const [fieldErrors, setFieldErrors] = useState<{ branch?: boolean; staff?: boolean }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ branch?: boolean; address?: boolean; staff?: boolean }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetch('/api/branches')
       .then((res) => res.json())
-      .then((data) => setBranches(data.branches ?? []))
+      .then((data) => {
+        const list: Branch[] = (data.branches ?? []).map((b: any) =>
+          typeof b === 'string'
+            ? { name: b, addresses: [] }
+            : { name: String(b.name), addresses: Array.isArray(b.addresses) ? b.addresses : [] }
+        );
+        setBranches(list);
+      })
       .catch(() => setBranches([]));
   }, []);
 
+  const selectedBranch = branches.find((b) => b.name === branchName);
+  const addresses = selectedBranch?.addresses ?? [];
+
+  const handleBranchChange = (name: string) => {
+    setBranchName(name);
+    const branch = branches.find((b) => b.name === name);
+    // 住所が1件ならそのまま確定、複数なら利用者に選んでもらう
+    setAddress(branch && branch.addresses.length === 1 ? branch.addresses[0] : '');
+  };
+
   const handleSubmit = async () => {
-    const errors: { branch?: boolean; staff?: boolean } = {};
+    const errors: { branch?: boolean; address?: boolean; staff?: boolean } = {};
     if (!branchName) errors.branch = true;
+    if (addresses.length >= 2 && !address) errors.address = true;
     if (!staffName.trim()) errors.staff = true;
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -42,6 +66,7 @@ export default function CartPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           branchName,
+          address,
           staffName: staffName.trim(),
           note: note.trim(),
           items: items.map((i) => ({
@@ -80,20 +105,26 @@ export default function CartPage() {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+    <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
       <div>
         <h1 className="mb-6 text-xl font-bold text-ink">カート</h1>
         <ul className="divide-y divide-line rounded border border-line">
           {items.map((item) => (
-            <li key={item.productId} className="flex items-center gap-4 p-4">
-              <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded bg-brand-50">
+            <li key={item.productId} className="flex flex-wrap items-center gap-3 p-3 sm:gap-4 sm:p-4">
+              <div className="relative h-20 w-14 flex-shrink-0 overflow-hidden rounded bg-brand-50">
                 {item.imageUrl && (
-                  <Image src={item.imageUrl} alt={item.catalogName} fill className="object-cover" />
+                  <Image
+                    src={item.imageUrl}
+                    alt={item.catalogName}
+                    fill
+                    sizes="56px"
+                    className="object-contain p-1"
+                  />
                 )}
               </div>
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-ink">{item.catalogName}</p>
-                <p className="text-xs text-ink/50">発注単位：{item.orderUnit}個</p>
+                <p className="text-xs text-ink/50">発注単位：{item.orderUnit}冊</p>
               </div>
               <QuantitySelector
                 quantity={item.quantity}
@@ -124,19 +155,68 @@ export default function CartPage() {
             </label>
             <select
               value={branchName}
-              onChange={(e) => setBranchName(e.target.value)}
+              onChange={(e) => handleBranchChange(e.target.value)}
               className={`w-full rounded border px-3 py-2 text-sm ${
                 fieldErrors.branch ? 'border-red-500' : 'border-line'
               }`}
             >
               <option value="">選択してください</option>
               {branches.map((b) => (
-                <option key={b} value={b}>
-                  {b}
+                <option key={b.name} value={b.name}>
+                  {b.name}
                 </option>
               ))}
             </select>
           </div>
+
+          {branchName && (
+            <div>
+              <p className="mb-1 text-sm font-medium text-ink">
+                送付先住所
+                {addresses.length >= 2 && <span className="text-red-600"> *</span>}
+              </p>
+
+              {addresses.length === 0 && (
+                <p className="rounded border border-line bg-brand-50 px-3 py-2 text-sm text-ink/60">
+                  この支店の住所は確認中です。
+                </p>
+              )}
+
+              {addresses.length === 1 && (
+                <p className="rounded border border-line bg-brand-50 px-3 py-2 text-sm leading-relaxed text-ink">
+                  {addresses[0]}
+                </p>
+              )}
+
+              {addresses.length >= 2 && (
+                <div
+                  className={`space-y-2 rounded border p-2 ${
+                    fieldErrors.address ? 'border-red-500' : 'border-line'
+                  }`}
+                >
+                  <p className="px-1 text-xs text-ink/60">送付先を選んでください</p>
+                  {addresses.map((a) => (
+                    <label
+                      key={a}
+                      className={`flex cursor-pointer items-start gap-2 rounded border px-3 py-2 text-sm leading-relaxed ${
+                        address === a ? 'border-brand-500 bg-brand-50' : 'border-line'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="address"
+                        value={a}
+                        checked={address === a}
+                        onChange={() => setAddress(a)}
+                        className="mt-1"
+                      />
+                      <span>{a}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="mb-1 block text-sm font-medium text-ink">
