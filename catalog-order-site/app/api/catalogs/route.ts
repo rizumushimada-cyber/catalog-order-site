@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCatalogItems } from '@/lib/googleSheets';
+import { getCatalogItems, getSheetsClient, SHEET_CATALOG } from '@/lib/googleSheets';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,17 +8,41 @@ export type CatalogViewModel = {
   catalogName: string;
   imageUrl: string;
   orderUnit: number;
-  // Largest orderable quantity (already floored to a multiple of orderUnit,
-  // and capped by both stock_quantity and max_order_per_time).
-  // Raw stock_quantity itself is intentionally never sent to the client.
+  // 発注できる最大数量（order_unit の倍数に切り下げ済み。在庫と1回上限の両方を満たす値）。
+  // 在庫数そのものは画面側には送らない。
   maxOrderable: number;
   salesStatus: 'on_sale' | 'out_of_stock';
   nextArrivalDate: string;
+  // 区分（catalog_master の J列 category）。空欄の場合は「その他」。
+  category: string;
 };
+
+// catalog_master の J列(category)を product_id ごとに読み込む。
+// 読み込みに失敗しても、カタログ一覧の表示自体は止めない（区分は「その他」になる）。
+async function getCategoryMap(): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  if (!spreadsheetId) return map;
+
+  try {
+    const res = await getSheetsClient().spreadsheets.values.get({
+      spreadsheetId,
+      range: `${SHEET_CATALOG}!A2:J`,
+    });
+    for (const row of res.data.values ?? []) {
+      if (row[0]) {
+        map.set(String(row[0]), row[9] ? String(row[9]).trim() : '');
+      }
+    }
+  } catch (err) {
+    console.error('Failed to read category column:', err);
+  }
+  return map;
+}
 
 export async function GET() {
   try {
-    const items = await getCatalogItems();
+    const [items, categories] = await Promise.all([getCatalogItems(), getCategoryMap()]);
 
     const view: CatalogViewModel[] = items.map((item) => {
       const cap = Math.min(item.stockQuantity, item.maxOrderPerTime);
@@ -32,6 +56,7 @@ export async function GET() {
         maxOrderable: Math.max(maxOrderable, 0),
         salesStatus: item.salesStatus === 'out_of_stock' || maxOrderable <= 0 ? 'out_of_stock' : 'on_sale',
         nextArrivalDate: item.nextArrivalDate,
+        category: categories.get(item.productId) || 'その他',
       };
     });
 
