@@ -4,8 +4,13 @@
 
 html,
 body {
-  background-color: #ffffff;
   color: #1c2430;
+}
+
+body {
+  background: #f3f6fb radial-gradient(#dce4f0 1px, transparent 1px) 0 0 / 22px 22px;
+  font-family: 'Noto Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, system-ui,
+    sans-serif;
 }
 
 * {
@@ -19,4 +24,38 @@ body {
 
 button:disabled {
   cursor: not-allowed;
+}
+
+/* カタログの表紙を、棚に置いた本のように見せる */
+.cover-stage {
+  position: relative;
+  background: linear-gradient(180deg, #f2f6fc, #e2eaf6);
+}
+
+.cover-stage::after {
+  content: '';
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  bottom: 13px;
+  height: 10px;
+  background: radial-gradient(ellipse at center, rgba(20, 48, 92, 0.3), transparent 70%);
+}
+
+.cover-book {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 1px 3px 3px 1px;
+  box-shadow: 0 1px 1px rgba(20, 48, 92, 0.12), 0 10px 14px -8px rgba(20, 48, 92, 0.5);
+}
+
+/* 背表紙の色が、カタログの区分を表す */
+.cover-spine {
+  flex: none;
+  width: 7px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.22), rgba(255, 255, 255, 0.28) 55%, rgba(0, 0, 0, 0.08)),
+    var(--c);
 }

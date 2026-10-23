@@ -1,16 +1,32 @@
 'use client';
 
 import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import Image from 'next/image';
 import QuantitySelector from './QuantitySelector';
+import { CartIcon } from './CartWidget';
 import { useCart } from '@/context/CartContext';
 import type { CatalogViewModel } from '@/app/api/catalogs/route';
+
+// 区分ごとの色。背表紙の色と、絞り込みボタンの丸の色に使う。
+export const CATEGORY_COLORS: Record<string, string> = {
+  総合カタログ: '#1A3B6E',
+  単品カタログ: '#2F7F8F',
+  リフレット: '#C58B2A',
+  フライヤー: '#B5533C',
+  その他: '#6B7585',
+};
+
+export function categoryColor(name: string): string {
+  return CATEGORY_COLORS[name] ?? '#6B7585';
+}
 
 export default function CatalogCard({ item }: { item: CatalogViewModel }) {
   const { addItem } = useCart();
   const isOutOfStock = item.salesStatus === 'out_of_stock';
   const [quantity, setQuantity] = useState(isOutOfStock ? 0 : item.orderUnit);
   const [added, setAdded] = useState(false);
+  const color = categoryColor(item.category);
 
   const handleAdd = () => {
     addItem(
@@ -28,54 +44,58 @@ export default function CatalogCard({ item }: { item: CatalogViewModel }) {
   };
 
   return (
-    <div className="flex flex-col overflow-hidden rounded border border-line bg-white">
-      <div className="relative aspect-[3/4] w-full bg-brand-50">
-        {item.imageUrl ? (
-          <Image
-            src={item.imageUrl}
-            alt={item.catalogName}
-            fill
-            sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
-            className="object-contain p-2"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs text-ink/40">
-            画像なし
+    <div className="flex flex-col overflow-hidden rounded-md border border-line bg-white shadow-[0_1px_2px_rgba(20,48,92,0.06)] hover:shadow-[0_10px_24px_-10px_rgba(20,48,92,0.35)]">
+      <div className="cover-stage aspect-[3/4] w-full" style={{ '--c': color } as CSSProperties}>
+        <div className="absolute inset-x-[22px] bottom-[30px] top-[22px] flex items-center justify-center">
+          <div className={`cover-book aspect-[5/7] h-full max-w-full ${isOutOfStock ? 'opacity-60 grayscale' : ''}`}>
+            <span className="cover-spine" />
+            <div className="relative flex-1 bg-white">
+              {item.imageUrl ? (
+                <Image
+                  src={item.imageUrl}
+                  alt={item.catalogName}
+                  fill
+                  sizes="(max-width: 640px) 40vw, (max-width: 1024px) 22vw, 14vw"
+                  className="object-contain"
+                />
+              ) : (
+                <span className="block p-2 text-[11px] font-bold" style={{ color }}>
+                  {item.catalogName}
+                </span>
+              )}
+            </div>
           </div>
-        )}
+        </div>
         {isOutOfStock && (
-          <div className="absolute inset-x-0 bottom-0 bg-ink/80 px-2 py-1.5 text-white">
-            <p className="text-xs font-semibold">❌ 欠品中</p>
-            {item.nextArrivalDate && (
-              <p className="text-[11px] text-white/80">次回入荷：{item.nextArrivalDate}</p>
-            )}
-          </div>
+          <span className="absolute left-[-34px] top-[26px] z-[2] w-[140px] -rotate-[35deg] bg-ink py-1 text-center text-[11px] text-white">
+            欠品中
+          </span>
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-2.5">
-        <h2 className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug text-ink">
-          {item.catalogName}
-        </h2>
-        <p className="text-[11px] text-ink/50">発注単位：{item.orderUnit}冊</p>
+      <div className="flex flex-1 flex-col gap-2.5 p-3.5">
+        <h2 className="line-clamp-2 min-h-[42px] text-sm font-medium leading-normal text-ink">{item.catalogName}</h2>
+        <p className="text-xs text-[#5B6676]">
+          {isOutOfStock ? `次回入荷：${item.nextArrivalDate || '未定'}` : `発注単位 ${item.orderUnit}冊`}
+        </p>
 
-        <div className="mt-auto flex flex-col items-stretch gap-2 pt-1">
-          <div className="flex justify-center">
-            <QuantitySelector
-              quantity={quantity}
-              orderUnit={item.orderUnit}
-              min={item.orderUnit}
-              max={item.maxOrderable}
-              onChange={setQuantity}
-              disabled={isOutOfStock}
-            />
-          </div>
+        <div className="mt-auto flex flex-col gap-2.5">
+          <QuantitySelector
+            fullWidth
+            quantity={quantity}
+            orderUnit={item.orderUnit}
+            min={item.orderUnit}
+            max={item.maxOrderable}
+            onChange={setQuantity}
+            disabled={isOutOfStock}
+          />
           <button
             type="button"
             onClick={handleAdd}
             disabled={isOutOfStock}
-            className="w-full rounded bg-brand-600 px-2 py-2 text-xs font-medium text-white disabled:bg-ink/15 disabled:text-ink/40"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-brand-700 text-[13px] font-medium text-white hover:bg-brand-600 disabled:bg-[#E8ECF2] disabled:text-[#5B6676] disabled:hover:bg-[#E8ECF2]"
           >
+            <CartIcon />
             {added ? '追加しました' : 'カートに追加'}
           </button>
         </div>
