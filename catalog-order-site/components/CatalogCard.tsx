@@ -1,14 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import type { CSSProperties } from 'react';
 import Image from 'next/image';
 import QuantitySelector from './QuantitySelector';
 import { CartIcon } from './CartWidget';
 import { useCart } from '@/context/CartContext';
 import type { CatalogViewModel } from '@/app/api/catalogs/route';
 
-// 区分ごとの色。背表紙の色と、絞り込みボタンの丸の色に使う。
+// 区分ごとの色。カードの枠の色と、絞り込みボタンの丸の色に使う。
 export const CATEGORY_COLORS: Record<string, string> = {
   総合カタログ: '#1A3B6E',
   単品カタログ: '#2F7F8F',
@@ -44,11 +43,13 @@ export default function CatalogCard({ item }: { item: CatalogViewModel }) {
   };
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-md border border-line bg-white shadow-[0_1px_2px_rgba(20,48,92,0.06)] hover:shadow-[0_10px_24px_-10px_rgba(20,48,92,0.35)]">
-      <div className="cover-stage aspect-[3/4] w-full" style={{ '--c': color } as CSSProperties}>
+    <div
+      className="flex flex-col overflow-hidden rounded-md border-2 bg-white shadow-[0_1px_2px_rgba(20,48,92,0.06)] hover:shadow-[0_10px_24px_-10px_rgba(20,48,92,0.35)]"
+      style={{ borderColor: color }}
+    >
+      <div className="cover-stage aspect-[3/4] w-full">
         <div className="absolute inset-x-[22px] bottom-[30px] top-[22px] flex items-center justify-center">
           <div className={`cover-book aspect-[5/7] h-full max-w-full ${isOutOfStock ? 'opacity-60 grayscale' : ''}`}>
-            <span className="cover-spine" />
             <div className="relative flex-1 bg-white">
               {item.imageUrl ? (
                 <Image
