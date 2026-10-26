@@ -7,7 +7,7 @@ import { CartIcon } from './CartWidget';
 import { useCart } from '@/context/CartContext';
 import type { CatalogViewModel } from '@/app/api/catalogs/route';
 
-// 区分ごとの色。カードの枠の色と、絞り込みボタンの丸の色に使う。
+// 区分ごとの色。カタログ名の左の線と、絞り込みボタンの丸の色に使う。
 export const CATEGORY_COLORS: Record<string, string> = {
   総合カタログ: '#1A3B6E',
   単品カタログ: '#2F7F8F',
@@ -44,8 +44,7 @@ export default function CatalogCard({ item }: { item: CatalogViewModel }) {
 
   return (
     <div
-      className="flex flex-col overflow-hidden rounded-md border-2 bg-white shadow-[0_1px_2px_rgba(20,48,92,0.06)] hover:shadow-[0_10px_24px_-10px_rgba(20,48,92,0.35)]"
-      style={{ borderColor: color }}
+      className="flex flex-col overflow-hidden rounded-md border border-line bg-white shadow-[0_1px_2px_rgba(20,48,92,0.06)] hover:shadow-[0_10px_24px_-10px_rgba(20,48,92,0.35)]"
     >
       <div className="cover-stage aspect-[3/4] w-full">
         <div className="absolute inset-x-[22px] bottom-[30px] top-[22px] flex items-center justify-center">
@@ -75,8 +74,13 @@ export default function CatalogCard({ item }: { item: CatalogViewModel }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-2.5 p-3.5">
-        <h2 className="line-clamp-2 min-h-[42px] text-sm font-medium leading-normal text-ink">{item.catalogName}</h2>
-        <p className="text-xs text-[#5B6676]">
+        <h2
+          className="line-clamp-2 min-h-[42px] border-l-4 pl-2.5 text-sm font-medium leading-normal text-ink"
+          style={{ borderLeftColor: color }}
+        >
+          {item.catalogName}
+        </h2>
+        <p className="pl-3.5 text-xs text-[#5B6676]">
           {isOutOfStock ? `次回入荷：${item.nextArrivalDate || '未定'}` : `発注単位 ${item.orderUnit}冊`}
         </p>
 
